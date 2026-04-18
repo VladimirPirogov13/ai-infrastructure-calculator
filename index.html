@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор TCO для развёртывания LLM</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+:root {
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --amber: #f59e0b;
+  --green: #10b981;
+  --red: #ef4444;
+  --purple: #8b5cf6;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --header-from: #0f172a;
+  --header-to: #1e3a5f;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, var(--header-from), var(--header-to));
+  color: white; padding: 24px 32px; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.header-inner { max-width: 1800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.header .subtitle { font-size: 13px; opacity: 0.7; margin-top: 2px; }
+.back-link { color: rgba(255,255,255,0.7); font-size: 13px; transition: color 0.2s; }
+.back-link:hover { color: white; text-decoration: none; }
+
+/* Layout */
+.main-layout {
+  display: flex; max-width: 1800px; margin: 0 auto; min-height: calc(100vh - 80px);
+}
+.calc-side { width: 58%; padding: 24px; overflow-y: auto; }
+.method-side {
+  width: 42%; border-left: 1px solid var(--border); background: white;
+  display: flex; flex-direction: column; position: sticky; top: 80px;
+  height: calc(100vh - 80px);
+}
+
+/* Cards */
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow);
+  transition: box-shadow 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-lg); }
+.card-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.card-title .icon { font-size: 18px; }
+
+/* Form controls */
+.field { margin-bottom: 14px; }
+.field-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.field-value { font-size: 20px; font-weight: 700; color: var(--blue); }
+
+input[type="range"] {
+  -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px;
+  background: #e2e8f0; outline: none; transition: background 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--blue); cursor: pointer; box-shadow: 0 2px 6px rgba(59,130,246,0.4);
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+select, input[type="number"], input[type="text"] {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; background: white; color: var(--text); transition: border-color 0.2s;
+  outline: none;
+}
+select:focus, input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+/* Toggle switch */
+.toggle-wrap { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.toggle {
+  width: 44px; height: 24px; background: #cbd5e1; border-radius: 12px;
+  position: relative; transition: background 0.3s; flex-shrink: 0;
+}
+.toggle.active { background: var(--blue); }
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+  background: white; border-radius: 50%; transition: transform 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.active::after { transform: translateX(20px); }
+.toggle-label { font-size: 13px; color: var(--text); user-select: none; }
+
+/* Button group */
+.btn-group { display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.btn-group button {
+  flex: 1; padding: 8px 16px; border: none; background: white; color: var(--text-muted);
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-group button.active { background: var(--blue); color: white; }
+.btn-group button:hover:not(.active) { background: #f1f5f9; }
+
+/* Action buttons */
+.btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--blue); color: white; }
+.btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { background: #dc2626; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* Stat cards */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border: 1px solid #bae6fd;
+  border-radius: var(--radius); padding: 14px; text-align: center;
+}
+.stat-card.amber { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-color: #fde68a; }
+.stat-card.green { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-color: #a7f3d0; }
+.stat-card.purple { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-color: #c4b5fd; }
+.stat-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 24px; font-weight: 800; margin: 4px 0; }
+.stat-sub { font-size: 11px; color: var(--text-muted); }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { text-align: left; padding: 8px 10px; background: #f8fafc; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.data-table tr:hover td { background: #f8fafc; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* CSS bar chart */
+.bar-chart { margin: 12px 0; }
+.bar-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+.bar-label { width: 60px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-align: right; flex-shrink: 0; }
+.bar-track { flex: 1; height: 28px; background: #f1f5f9; border-radius: 6px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; display: flex; align-items: center; padding-left: 10px; font-size: 11px; font-weight: 700; color: white; min-width: 0; }
+.bar-fill.capex { background: linear-gradient(90deg, var(--blue), var(--blue-light)); }
+.bar-fill.opex { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+.bar-fill.giga { background: linear-gradient(90deg, var(--purple), #a78bfa); }
+
+/* Comparison chart */
+.compare-chart { margin: 16px 0; position: relative; height: 200px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fafbfc; }
+.compare-line { position: absolute; bottom: 0; left: 0; right: 0; height: 100%; }
+
+/* Model row */
+.model-row {
+  background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px; margin-bottom: 10px; transition: all 0.2s;
+}
+.model-row:hover { border-color: var(--blue-light); }
+.model-row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.model-row-fields { display: grid; grid-template-columns: 1fr 140px 140px; gap: 10px; align-items: end; }
+
+/* Checkboxes */
+.checkbox-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.checkbox-item {
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+  background: #f1f5f9; border-radius: 8px; cursor: pointer; font-size: 13px;
+  transition: all 0.2s; border: 1px solid transparent; user-select: none;
+}
+.checkbox-item:hover { background: #e2e8f0; }
+.checkbox-item.checked { background: #dbeafe; border-color: var(--blue); color: var(--blue); }
+.checkbox-item input { display: none; }
+
+/* User type badges */
+.user-types { display: flex; gap: 8px; flex-wrap: wrap; }
+.user-badge {
+  padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+}
+.user-badge.casual { background: #dbeafe; color: #1d4ed8; }
+.user-badge.regular { background: #fef3c7; color: #92400e; }
+.user-badge.advanced { background: #fee2e2; color: #991b1b; }
+
+/* Methodology tabs */
+.method-tabs {
+  display: flex; overflow-x: auto; border-bottom: 2px solid var(--border);
+  background: #f8fafc; flex-shrink: 0;
+}
+.method-tabs::-webkit-scrollbar { height: 0; }
+.method-tab {
+  padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all 0.2s; flex-shrink: 0;
+}
+.method-tab:hover { color: var(--text); background: #f1f5f9; }
+.method-tab.active { color: var(--blue); border-bottom-color: var(--blue); background: white; }
+.method-content {
+  flex: 1; overflow-y: auto; padding: 20px;
+}
+.method-panel { display: none; }
+.method-panel.active { display: block; }
+.method-panel h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+.method-panel h4 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: var(--text); }
+.method-panel p { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.7; }
+.method-panel .formula-block {
+  background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+  padding: 14px; margin: 12px 0; text-align: center;
+}
+.method-panel .example-block {
+  background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px;
+  padding: 12px; margin: 10px 0; font-size: 13px;
+}
+.method-panel .tip-block {
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+  padding: 12px; margin: 10px 0; font-size: 13px;
+}
+.method-panel .warn-block {
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+  padding: 12px; margin: 10px 0; font-size: 13px;
+}
+.var-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0; }
+.var-table th { text-align: left; padding: 6px 8px; background: #f1f5f9; font-size: 11px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.var-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+.var-table code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+/* Steps display */
+.steps-display { margin: 16px 0; }
+.step-item {
+  display: flex; gap: 12px; margin-bottom: 12px; padding: 12px;
+  background: #f8fafc; border-radius: 10px; border: 1px solid var(--border);
+}
+.step-num {
+  width: 28px; height: 28px; background: var(--blue); color: white;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+.step-body { flex: 1; }
+.step-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+.step-formula { margin: 4px 0; }
+.step-result { font-size: 14px; font-weight: 700; color: var(--blue); }
+
+/* Sources */
+.sources-list { font-size: 12px; color: var(--text-muted); line-height: 1.8; }
+.sources-list li { margin-bottom: 4px; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .main-layout { flex-direction: column; }
+  .calc-side, .method-side { width: 100%; }
+  .method-side { position: relative; top: 0; height: auto; max-height: 80vh; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .model-row-fields { grid-template-columns: 1fr; }
+  .header { padding: 16px; }
+}
+
+/* KaTeX overrides */
+.katex { font-size: 1.05em !important; }
+.formula-block .katex { font-size: 1.15em !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <a href="https://github.com/VladimirPirogov13/ai-infrastructure-calculator" class="back-link" target="_blank" rel="noopener">GitHub репозиторий &rarr;</a>
+      <h1>Калькулятор TCO для развёртывания LLM</h1>
+      <div class="subtitle">Оценка стоимости собственной ИИ-инфраструктуры &middot; Мульти-модельные конфигурации &middot; Движки инференса и квантование</div>
+    </div>
+    <div style="text-align:right;font-size:12px;opacity:0.6;">v3.0 &middot; 2026</div>
+  </div>
+</div>
+
+<div class="main-layout">
+<!-- ===================== LEFT: CALCULATOR ===================== -->
+<div class="calc-side">
+
+<!-- Section 1: Organization -->
+<div class="card">
+  <div class="card-title"><span class="icon">&#127970;</span> Раздел 1: Организация</div>
+
+  <div class="field">
+    <div class="field-label">Количество сотрудников</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <input type="range" id="slEmployees" min="100" max="50000" value="1000" step="100" oninput="onInput()">
+      <span class="field-value" id="vEmployees">1 000</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-label">% сотрудников с доступом к ИИ</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <input type="range" id="slAiPct" min="5" max="100" value="30" oninput="onInput()">
+      <span class="field-value" id="vAiPct">30%</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-label">Распределение пользователей (авто)</div>
+    <div class="user-types" id="userTypes"></div>
+  </div>
+
+  <div class="field">
+    <div class="field-label">Варианты использования</div>
+    <div class="checkbox-grid" id="useCases">
+      <label class="checkbox-item checked" onclick="toggleCheck(this)"><input type="checkbox" checked value="chat">Чат</label>
+      <label class="checkbox-item checked" onclick="toggleCheck(this)"><input type="checkbox" checked value="docs">Анализ документов</label>
+      <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="code">Код-ассистент</label>
+      <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="reports">Отчёты</label>
+      <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="translate">Перевод</label>
+      <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="rag">RAG</label>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-label">Пиковый параллелизм %</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <input type="range" id="slPeakPct" min="5" max="25" value="10" oninput="onInput()">
+      <span class="field-value" id="vPeakPct">10%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Models (multi-model) -->
+<div class="card">
+  <div class="card-title"><span class="icon">&#129302;</span> Раздел 2: Модели (мульти-модель)</div>
+  <div id="modelList"></div>
+  <button class="btn btn-primary" onclick="addModel()" style="margin-top:10px;">+ Добавить модель</button>
+  <div id="trafficWarning" style="display:none;color:var(--red);font-size:12px;margin-top:8px;font-weight:600;"></div>
+</div>
+
+<!-- Section 3: Hardware -->
+<div class="card">
+  <div class="card-title"><span class="icon">&#128187;</span> Раздел 3: Оборудование и инференс</div>
+
+  <div class="field">
+    <div class="field-label">Движок инференса</div>
+    <select id="selEngine" onchange="onInput()">
+      <option value="vllm">vLLM &mdash; baseline (&times;1.00)</option>
+      <option value="sglang">SGLang &mdash; RadixAttention, structured output (&times;1.15)</option>
+      <option value="trtllm">TensorRT-LLM &mdash; NVIDIA only, максимум (&times;1.40)</option>
+      <option value="tgi">HuggingFace TGI (&times;0.95)</option>
+      <option value="llamacpp">llama.cpp &mdash; CPU/mixed, GGUF (&times;0.50)</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <div class="field-label">Тип GPU</div>
+    <select id="selGpu" onchange="onInput()">
+      <option value="h100">NVIDIA H100 80GB SXM &mdash; $30 000</option>
+      <option value="h200">NVIDIA H200 141GB SXM &mdash; $40 000</option>
+      <option value="b200">NVIDIA B200 192GB SXM &mdash; $40 000</option>
+      <option value="a100">NVIDIA A100 80GB SXM &mdash; $15 000</option>
+      <option value="l40s">NVIDIA L40S 48GB &mdash; $8 000</option>
+      <option value="rtx6000ada">NVIDIA RTX 6000 Ada 48GB &mdash; $6 800</option>
+      <option value="rtx5090">NVIDIA RTX 5090 32GB &mdash; $2 500</option>
+      <option value="mi300x">AMD Instinct MI300X 192GB &mdash; $15 000</option>
+      <option value="gaudi3">Intel Gaudi 3 128GB &mdash; $15 000</option>
+      <option value="ascend910b">Huawei Ascend 910B 64GB &mdash; $12 000</option>
+    </select>
+  </div>
+
+  <div class="field" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+    <div class="toggle-wrap" onclick="toggleSwitch('togRussia',this)" id="togRussiaWrap">
+      <div class="toggle" id="togRussia"></div>
+      <span class="toggle-label">Российский рынок (санкционная наценка +65%)</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-label">GPU на сервер</div>
+    <select id="selGpuPerServer" onchange="onInput()">
+      <option value="4">4</option>
+      <option value="8" selected>8</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <div class="field-label">Горизонт планирования</div>
+    <div class="btn-group" id="bgHorizon">
+      <button onclick="setHorizon(3,this)">3 года</button>
+      <button class="active" onclick="setHorizon(5,this)">5 лет</button>
+      <button onclick="setHorizon(7,this)">7 лет</button>
+    </div>
+  </div>
+</div>
+
+<!-- Section 4: GigaChat comparison -->
+<div class="card">
+  <div class="card-title"><span class="icon">&#128200;</span> Раздел 4: GigaChat Enterprise (сравнение)</div>
+  <div class="field" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+    <div class="toggle-wrap" onclick="toggleSwitch('togGiga',this)" id="togGigaWrap">
+      <div class="toggle" id="togGiga"></div>
+      <span class="toggle-label">Включить сравнение с GigaChat Enterprise</span>
+    </div>
+  </div>
+  <div id="gigaFields" style="display:none;">
+    <div class="field">
+      <div class="field-label">Стоимость лицензии GigaChat Enterprise в год</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-weight:600;">&#8381;</span>
+        <input type="number" id="inGigaCost" value="140000000" onchange="onInput()" oninput="onInput()" style="max-width:220px;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 5: Results -->
+<div class="card" id="resultsCard">
+  <div class="card-title"><span class="icon">&#128202;</span> Раздел 5: Результаты</div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Всего GPU</div>
+      <div class="stat-value" id="rGpus">0</div>
+      <div class="stat-sub" id="rGpuType"></div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">Серверов</div>
+      <div class="stat-value" id="rServers">0</div>
+      <div class="stat-sub" id="rGpuPerSrv"></div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label" id="rTcoLabel">5-летний TCO</div>
+      <div class="stat-value" id="rTco" style="font-size:18px;">&#8381;0</div>
+      <div class="stat-sub" id="rTcoUsd"></div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">На пользователя/мес</div>
+      <div class="stat-value" id="rPerUser" style="font-size:18px;">&#8381;0</div>
+      <div class="stat-sub" id="rPerUserUsd"></div>
+    </div>
+  </div>
+
+  <!-- CAPEX Table -->
+  <h4 style="margin:16px 0 8px;font-size:14px;">CAPEX (единоразовые расходы)</h4>
+  <table class="data-table">
+    <thead><tr><th>Статья</th><th class="num">USD</th><th class="num">RUB</th></tr></thead>
+    <tbody id="capexBody"></tbody>
+    <tfoot><tr style="font-weight:700;background:#f0f9ff;"><td>Итого CAPEX</td><td class="num" id="capexTotalUsd"></td><td class="num" id="capexTotalRub"></td></tr></tfoot>
+  </table>
+
+  <!-- OPEX Table -->
+  <h4 style="margin:16px 0 8px;font-size:14px;">OPEX (ежегодные расходы)</h4>
+  <table class="data-table">
+    <thead><tr><th>Статья</th><th class="num">USD/год</th><th class="num">RUB/год</th></tr></thead>
+    <tbody id="opexBody"></tbody>
+    <tfoot><tr style="font-weight:700;background:#fffbeb;"><td>Итого OPEX/год</td><td class="num" id="opexTotalUsd"></td><td class="num" id="opexTotalRub"></td></tr></tfoot>
+  </table>
+
+  <!-- TCO Bar Chart -->
+  <h4 style="margin:16px 0 8px;font-size:14px;">Кумулятивный TCO по годам</h4>
+  <div class="bar-chart" id="tcoChart"></div>
+
+  <!-- GigaChat Comparison -->
+  <div id="gigaCompare" style="display:none;">
+    <h4 style="margin:16px 0 8px;font-size:14px;">Сравнение: Self-hosted vs GigaChat Enterprise</h4>
+    <div class="bar-chart" id="gigaChart"></div>
+    <div id="gigaBreakeven" style="font-size:13px;margin:8px 0;font-weight:600;"></div>
+    <table class="data-table" style="margin-top:10px;">
+      <thead><tr><th></th><th class="num">Self-hosted</th><th class="num">GigaChat Enterprise</th></tr></thead>
+      <tbody id="gigaTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Per-model allocation -->
+  <h4 style="margin:16px 0 8px;font-size:14px;">Распределение GPU по моделям</h4>
+  <table class="data-table">
+    <thead><tr><th>Модель</th><th class="num">VRAM (GB)</th><th class="num">GPU</th><th class="num">% трафика</th><th class="num">tok/s</th></tr></thead>
+    <tbody id="modelAllocBody"></tbody>
+  </table>
+
+  <!-- 5-step formula -->
+  <h4 style="margin:16px 0 8px;font-size:14px;">Формула расчёта (5 шагов)</h4>
+  <div class="steps-display" id="stepsDisplay"></div>
+</div>
+
+</div><!-- /calc-side -->
+
+<!-- ===================== RIGHT: METHODOLOGY ===================== -->
+<div class="method-side">
+  <div class="method-tabs" id="methodTabs">
+    <div class="method-tab active" onclick="setMethodTab(0,this)">1. Память</div>
+    <div class="method-tab" onclick="setMethodTab(1,this)">2. KV-кэш</div>
+    <div class="method-tab" onclick="setMethodTab(2,this)">3. VRAM</div>
+    <div class="method-tab" onclick="setMethodTab(3,this)">4. Расчёт</div>
+    <div class="method-tab" onclick="setMethodTab(4,this)">5. Throughput</div>
+    <div class="method-tab" onclick="setMethodTab(5,this)">6. TCO</div>
+    <div class="method-tab" onclick="setMethodTab(6,this)">7. Внедрение</div>
+    <div class="method-tab" onclick="setMethodTab(7,this)">8. Сценарии</div>
+    <div class="method-tab" onclick="setMethodTab(8,this)">9. GigaChat</div>
+    <div class="method-tab" onclick="setMethodTab(9,this)">10. Модели</div>
+  </div>
+  <div class="method-content" id="methodContent">
+
+    <!-- Tab 0: Memory for weights -->
+    <div class="method-panel active" id="mTab0">
+      <h3>Память под веса модели</h3>
+      <p>Веса модели &mdash; это обученные параметры (числа), хранящиеся в памяти GPU. Каждый параметр занимает определённое количество байт в зависимости от точности представления:</p>
+      <table class="var-table">
+        <tr><th>Точность</th><th>Байт/параметр</th><th>Описание</th></tr>
+        <tr><td>FP32</td><td>4</td><td>Полная точность, редко для инференса</td></tr>
+        <tr><td>FP16 / BF16</td><td>2</td><td>Стандартная для обучения и инференса</td></tr>
+        <tr><td>FP8</td><td>1</td><td>Новый формат, отличный баланс качество/скорость</td></tr>
+        <tr><td>INT8</td><td>1</td><td>Целочисленное квантование</td></tr>
+        <tr><td>INT4</td><td>0.5</td><td>Агрессивное квантование, экономит память</td></tr>
+      </table>
+      <div class="formula-block"><span id="kf_weights"></span></div>
+      <table class="var-table">
+        <tr><th>Переменная</th><th>Значение</th></tr>
+        <tr><td><code>P</code></td><td>Количество параметров (в миллиардах)</td></tr>
+        <tr><td><code>b</code></td><td>Байт на параметр (зависит от квантования)</td></tr>
+      </table>
+      <div class="example-block">
+        <strong>Пример:</strong> Qwen 2.5 72B в INT4:<br>
+        VRAM = 72.7 &times; 0.5 = <strong>36.35 ГБ</strong>
+      </div>
+      <div class="example-block">
+        <strong>Пример:</strong> DeepSeek V3 (MoE 671B) в FP8:<br>
+        VRAM = 671 &times; 1 = <strong>671 ГБ</strong><br>
+        Хотя активных только 37B параметров за один токен, <em>все</em> 671B эксперты загружены в память.
+      </div>
+      <div class="warn-block">
+        <strong>Для MoE-моделей:</strong> все эксперты хранятся в VRAM, даже если при обработке каждого токена активируется только часть. Это ключевое отличие от dense-моделей.
+      </div>
+      <p><strong>Влияние:</strong> Размер весов определяет минимальное количество VRAM, а значит &mdash; минимальное количество GPU для обслуживания модели.</p>
+    </div>
+
+    <!-- Tab 1: KV Cache -->
+    <div class="method-panel" id="mTab1">
+      <h3>KV-кэш (Key-Value Cache)</h3>
+      <p>В архитектуре Transformer механизм внимания (attention) использует три матрицы: Query, Key и Value. При генерации каждого нового токена необходимо заново вычислять attention со всеми предыдущими токенами. Для ускорения Key и Value кэшируются.</p>
+      <p>KV-кэш растёт <strong>линейно</strong> с длиной контекста и количеством одновременных запросов (batch size). Технология GQA (Grouped Query Attention) использует меньше KV-голов, чем голов запросов, что сокращает кэш.</p>
+      <div class="formula-block"><span id="kf_kv"></span></div>
+      <table class="var-table">
+        <tr><th>Переменная</th><th>Описание</th></tr>
+        <tr><td><code>L</code></td><td>Количество слоёв (layers) трансформера</td></tr>
+        <tr><td><code>H<sub>kv</sub></code></td><td>Количество KV-голов (при GQA меньше, чем Q-голов)</td></tr>
+        <tr><td><code>d<sub>h</sub></code></td><td>Размерность каждой головы (head dimension)</td></tr>
+        <tr><td><code>T</code></td><td>Длина контекста (в токенах)</td></tr>
+        <tr><td><code>B</code></td><td>Batch size (число параллельных запросов)</td></tr>
+        <tr><td><code>b<sub>kv</sub></code></td><td>Байт на элемент (обычно 2 для FP16)</td></tr>
+      </table>
+      <div class="example-block">
+        <strong>Пример:</strong> Llama 3 70B, контекст 8K, 32 пользователя:<br>
+        80 слоёв &times; 8 KV-голов &times; 128 dim &times; 8192 токенов &times; 32 batch &times; 2 байта &times; 2 (K+V) &approx; <strong>~80 ГБ</strong>
+      </div>
+      <div class="tip-block">
+        <strong>Совет:</strong> Контекст 128K потребует в 16 раз больше KV-кэша, чем 8K. Именно поэтому длинный контекст так дорог в обслуживании.
+      </div>
+      <p>Для моделей с PagedAttention (vLLM) кэш выделяется динамически блоками, что повышает утилизацию памяти на 60-80%.</p>
+    </div>
+
+    <!-- Tab 2: Total VRAM -->
+    <div class="method-panel" id="mTab2">
+      <h3>Общий VRAM</h3>
+      <p>Полный объём видеопамяти, необходимый для обслуживания модели, складывается из трёх компонентов:</p>
+      <div class="formula-block"><span id="kf_total_vram"></span></div>
+      <h4>Компоненты накладных расходов (Overhead)</h4>
+      <table class="var-table">
+        <tr><th>Компонент</th><th>Размер</th></tr>
+        <tr><td>CUDA workspace</td><td>~0.5 ГБ</td></tr>
+        <tr><td>Активации (activations)</td><td>Зависит от batch size, ~1-5 ГБ</td></tr>
+        <tr><td>Буферы фреймворка (vLLM, TGI)</td><td>~1-3 ГБ</td></tr>
+        <tr><td>Временные тензоры</td><td>~0.5-2 ГБ</td></tr>
+      </table>
+      <p>На практике overhead составляет <strong>10-20%</strong> от суммы весов и KV-кэша.</p>
+      <div class="example-block">
+        <strong>Пример:</strong> Qwen 72B INT4: весов 37 ГБ + KV ~10 ГБ + overhead ~7 ГБ = <strong>~54 ГБ</strong> &rarr; нужно 1&times;H100 (80 ГБ)
+      </div>
+      <h4>Тензорный параллелизм</h4>
+      <p>Если общий VRAM превышает объём одного GPU, модель разделяется между несколькими GPU (tensor parallelism). Степень TP обычно равна числу GPU: TP=2 для 2 GPU, TP=4 для 4 и т.д. При этом требуется быстрая связь NVLink/NVSwitch между GPU.</p>
+      <div class="warn-block">
+        <strong>Правило:</strong> Для TP необходимо, чтобы GPU были в одном сервере с NVLink. Между серверами используется Pipeline Parallelism, что менее эффективно.
+      </div>
+    </div>
+
+    <!-- Tab 3: Users → GPU -->
+    <div class="method-panel" id="mTab3">
+      <h3>От пользователей к GPU (5 шагов)</h3>
+      <p>Пошаговый расчёт количества GPU на основе числа пользователей:</p>
+
+      <h4>Шаг 1: Одновременные пользователи</h4>
+      <div class="formula-block"><span id="kf_step1"></span></div>
+      <div class="example-block">1000 сотрудников &times; 30% AI-доступ &times; 10% пик = <strong>30 одновременных</strong></div>
+
+      <h4>Шаг 2: Активные запросы</h4>
+      <div class="formula-block"><span id="kf_step2"></span></div>
+      <p>Не все одновременные пользователи активно генерируют запросы. Коэффициент активности ~40% учитывает время на чтение, обдумывание, ввод.</p>
+      <div class="example-block">30 &times; 40% = <strong>12 активных запросов</strong></div>
+
+      <h4>Шаг 3: Требуемая пропускная способность</h4>
+      <div class="formula-block"><span id="kf_step3"></span></div>
+      <p>Средние выходные токены зависят от use case: чат ~200 токенов, анализ документов ~500, код ~400, отчёты ~800.</p>
+      <div class="example-block">12 &times; 300 токенов / 5 секунд = <strong>720 tok/s</strong></div>
+
+      <h4>Шаг 4: Количество GPU</h4>
+      <div class="formula-block"><span id="kf_step4"></span></div>
+      <p>Буфер 1.3&times; обеспечивает запас для пиковых нагрузок и деградации при высокой утилизации. Итоговое значение &mdash; максимум из расчёта по throughput и минимума по VRAM.</p>
+      <div class="example-block">720 / 96 &times; 1.3 = 9.75 &rarr; <strong>10 GPU</strong> (мин. по VRAM: 2)</div>
+
+      <h4>Шаг 5: Серверы</h4>
+      <div class="formula-block"><span id="kf_step5"></span></div>
+      <div class="example-block">ceil(10 / 8) = <strong>2 сервера</strong></div>
+    </div>
+
+    <!-- Tab 4: Throughput -->
+    <div class="method-panel" id="mTab4">
+      <h3>Пропускная способность GPU</h3>
+      <p>Инференс LLM является <strong>memory-bound</strong> задачей: скорость генерации ограничена пропускной способностью памяти, а не вычислительной мощностью.</p>
+      <div class="formula-block"><span id="kf_throughput"></span></div>
+      <p>Для H100 SXM: пропускная способность памяти = 3.35 ТБ/с, для A100 = 2.0 ТБ/с.</p>
+
+      <h4>Бенчмарки (данные исследований)</h4>
+      <table class="var-table">
+        <tr><th>Модель</th><th>GPU</th><th>Одиночный (tok/s)</th><th>Batch (tok/s)</th></tr>
+        <tr><td>8B FP16</td><td>1&times;H100</td><td>60-80</td><td>~8 000</td></tr>
+        <tr><td>70B INT4</td><td>1&times;H100</td><td>~96</td><td>~2 000</td></tr>
+        <tr><td>70B FP16</td><td>2&times;H100</td><td>30-40</td><td>250-300</td></tr>
+        <tr><td>405B FP8</td><td>8&times;H100</td><td>6-15</td><td>292-700</td></tr>
+        <tr><td>671B MoE FP8</td><td>8&times;H100</td><td>~30</td><td>~800</td></tr>
+      </table>
+      <div class="tip-block">
+        <strong>Continuous batching</strong> (vLLM, TGI) позволяет обрабатывать новые запросы, не дожидаясь завершения текущих. Это увеличивает совокупный throughput в 5-30 раз по сравнению с последовательной обработкой.
+      </div>
+      <p>В калькуляторе используется агрегатный throughput с учётом batching, что даёт реалистичную оценку для корпоративных нагрузок.</p>
+    </div>
+
+    <!-- Tab 5: TCO -->
+    <div class="method-panel" id="mTab5">
+      <h3>TCO и стоимость владения</h3>
+      <p>Оборудование составляет лишь <strong>~35% от 5-летнего TCO</strong>. Основные расходы &mdash; эксплуатация:</p>
+
+      <h4>Структура OPEX на сервер в год</h4>
+      <table class="var-table">
+        <tr><th>Статья</th><th>Диапазон USD</th></tr>
+        <tr><td>Электроэнергия + охлаждение</td><td>$15 000 &ndash; $25 000</td></tr>
+        <tr><td>Колокация / дата-центр</td><td>$36 000 &ndash; $96 000</td></tr>
+        <tr><td>Обслуживание (8% CAPEX)</td><td>$20 000 &ndash; $50 000</td></tr>
+        <tr><td>Программное обеспечение</td><td>$10 000 &ndash; $28 000</td></tr>
+        <tr><td>Персонал (ML Ops)</td><td>$30 000 &ndash; $60 000</td></tr>
+        <tr><td><strong>Итого OPEX/год</strong></td><td><strong>$120 000 &ndash; $288 000</strong></td></tr>
+      </table>
+
+      <h4>Формула электроэнергии</h4>
+      <div class="formula-block"><span id="kf_power"></span></div>
+
+      <h4>Санкционная наценка (Россия)</h4>
+      <p>NVIDIA GPU (H100, A100) запрещены к прямому экспорту в Россию. Наценка на параллельный импорт составляет <strong>30-100%</strong>, в среднем ~65%. Для Huawei Ascend наценка минимальна.</p>
+
+      <h4>Окупаемость vs облако</h4>
+      <p>Self-hosted инфраструктура обычно окупается за <strong>12-24 месяца</strong> по сравнению с облачными API при постоянной нагрузке &gt;50% утилизации.</p>
+    </div>
+
+    <!-- Tab 6: Adoption -->
+    <div class="method-panel" id="mTab6">
+      <h3>Кривая внедрения (30-60-90)</h3>
+      <p>Типичная динамика корпоративного внедрения ИИ следует S-образной кривой:</p>
+
+      <h4>Месяцы 1-3: Пилотный проект</h4>
+      <p>5-10% пользователей, 20% пиковой нагрузки. Тестирование на выбранных отделах, сбор обратной связи, настройка промптов.</p>
+
+      <h4>Месяцы 3-6: Масштабирование</h4>
+      <p>20-40% пользователей, 50% мощности. Подключение новых отделов, обучение, интеграция в рабочие процессы.</p>
+
+      <h4>Месяцы 6-12: Зрелость</h4>
+      <p>50-70% пользователей, приближение к полной нагрузке. Оптимизация, fine-tuning моделей, развитие RAG-пайплайнов.</p>
+
+      <h4>12+ месяцев: Стабилизация</h4>
+      <p>60-80% устойчивого состояния, 20-30% рост в год. Обновление моделей, расширение use cases.</p>
+
+      <div class="tip-block">
+        <strong>Рекомендация:</strong> Закупайте оборудование на 50-60% от целевой нагрузки. Остаток добавляйте на месяцах 6-9 по результатам пилота.
+      </div>
+    </div>
+
+    <!-- Tab 7: Scenarios -->
+    <div class="method-panel" id="mTab7">
+      <h3>Корпоративные сценарии</h3>
+      <h4>Потребление токенов по задачам</h4>
+      <table class="var-table">
+        <tr><th>Задача</th><th>Вход (токены)</th><th>Выход (токены)</th><th>Запросов/день</th></tr>
+        <tr><td>Простой чат</td><td>50-200</td><td>100-300</td><td>10-30</td></tr>
+        <tr><td>Анализ документов</td><td>2 000-10 000</td><td>300-800</td><td>5-15</td></tr>
+        <tr><td>Код-ассистент</td><td>500-3 000</td><td>200-500</td><td>20-50</td></tr>
+        <tr><td>Генерация отчётов</td><td>1 000-5 000</td><td>500-2 000</td><td>3-10</td></tr>
+        <tr><td>Перевод</td><td>200-2 000</td><td>200-2 000</td><td>5-20</td></tr>
+        <tr><td>RAG (поиск + ответ)</td><td>1 000-4 000</td><td>200-500</td><td>10-30</td></tr>
+      </table>
+      <div class="warn-block">
+        <strong>Разброс 100&times;:</strong> Между простым чатом (50 входных) и анализом документов (10 000 входных) разница в потреблении ресурсов может достигать 100 раз.
+      </div>
+      <h4>RAG: нюансы</h4>
+      <p>Чанкинг: типичный размер 256-512 токенов с перекрытием 10-20%. Каждый запрос RAG подаёт 3-10 чанков в контекст модели.</p>
+      <h4>Отраслевая специфика (нефтегаз)</h4>
+      <table class="var-table">
+        <tr><th>Направление</th><th>Доля</th></tr>
+        <tr><td>Подготовка документации</td><td>35%</td></tr>
+        <tr><td>Исследования</td><td>25%</td></tr>
+        <tr><td>Аналитика / data analysis</td><td>20%</td></tr>
+        <tr><td>Предиктивная аналитика</td><td>10%</td></tr>
+        <tr><td>Прочее</td><td>10%</td></tr>
+      </table>
+    </div>
+
+    <!-- Tab 8: GigaChat -->
+    <div class="method-panel" id="mTab8">
+      <h3>GigaChat Enterprise</h3>
+      <p>GigaChat Enterprise &mdash; лицензионное решение от Сбера для корпоративного развёртывания на собственных серверах заказчика.</p>
+      <h4>Основные характеристики</h4>
+      <table class="var-table">
+        <tr><th>Параметр</th><th>Значение</th></tr>
+        <tr><td>Стоимость лицензии</td><td>~&#8381;140 млн/год (~$1.55 млн)</td></tr>
+        <tr><td>Модель Ultra</td><td>702B MoE, 36B активных параметров</td></tr>
+        <tr><td>Модель Lightning</td><td>10B MoE, 1.8B активных параметров</td></tr>
+        <tr><td>Контекст</td><td>до 128K (Ultra), до 256K (Lightning)</td></tr>
+        <tr><td>Бенчмарк MERA</td><td>#1 среди российских моделей</td></tr>
+      </table>
+
+      <h4>Сравнение вариантов</h4>
+      <table class="var-table">
+        <tr><th></th><th>GigaChat Enterprise</th><th>Self-hosted (Huawei)</th><th>Self-hosted (NVIDIA)</th></tr>
+        <tr><td>CAPEX</td><td>Нет (лицензия)</td><td>&#8381;80-200 млн</td><td>&#8381;100-400 млн</td></tr>
+        <tr><td>OPEX/год</td><td>&#8381;140 млн</td><td>&#8381;30-60 млн</td><td>&#8381;30-60 млн</td></tr>
+        <tr><td>Выбор моделей</td><td>Только GigaChat</td><td>Любые (с ограничениями)</td><td>Любые</td></tr>
+        <tr><td>Fine-tuning</td><td>Ограничен</td><td>Полный</td><td>Полный</td></tr>
+        <tr><td>Русский язык</td><td>Отличный</td><td>Зависит от модели</td><td>Зависит от модели</td></tr>
+        <tr><td>Санкционный риск</td><td>Нет</td><td>Низкий</td><td>Высокий</td></tr>
+      </table>
+
+      <h4>Когда GigaChat лучше</h4>
+      <p>&gt;5000 пользователей, критичен русский язык, требования по сертификации и compliance, нет команды ML Ops.</p>
+      <h4>Когда self-hosted лучше</h4>
+      <p>&lt;3000 пользователей, нужна гибкость выбора моделей, fine-tuning, долгосрочное планирование (&gt;3 года).</p>
+    </div>
+
+    <!-- Tab 9: Model database -->
+    <div class="method-panel" id="mTab9">
+      <h3>База моделей</h3>
+      <p>Полный каталог моделей, доступных для self-hosted развёртывания:</p>
+      <div style="overflow-x:auto;">
+      <table class="var-table" style="font-size:11px;">
+        <tr><th>Модель</th><th>Параметры</th><th>Тип</th><th>Активные</th><th>Контекст</th><th>Риск РФ</th><th>Русский</th><th>Min GPU</th></tr>
+        <tr><td>GigaChat Ultra</td><td>702B</td><td>MoE</td><td>36B</td><td>128K</td><td>Нет</td><td>Отл.</td><td>16&times;H100</td></tr>
+        <tr><td>GigaChat Lightning</td><td>10B</td><td>MoE</td><td>1.8B</td><td>256K</td><td>Нет</td><td>Отл.</td><td>1&times;L40S</td></tr>
+        <tr><td>Qwen 3 235B</td><td>235B</td><td>MoE</td><td>22B</td><td>128K</td><td>Средн.</td><td>Хор.</td><td>4&times;H100</td></tr>
+        <tr><td>Kimi K2.5</td><td>1T</td><td>MoE</td><td>32B</td><td>256K</td><td>Средн.</td><td>Хор.</td><td>8&times;H100</td></tr>
+        <tr><td>DeepSeek R1</td><td>671B</td><td>MoE</td><td>37B</td><td>128K</td><td>Средн.</td><td>Хор.</td><td>4&times;H100</td></tr>
+        <tr><td>DeepSeek V3</td><td>671B</td><td>MoE</td><td>37B</td><td>128K</td><td>Средн.</td><td>Хор.</td><td>4&times;H100</td></tr>
+        <tr><td>Qwen 2.5 72B</td><td>72.7B</td><td>Dense</td><td>72.7B</td><td>128K</td><td>Средн.</td><td>Хор.</td><td>2&times;H100</td></tr>
+        <tr><td>Qwen 2.5 14B</td><td>14.7B</td><td>Dense</td><td>14.7B</td><td>32K</td><td>Средн.</td><td>Средн.</td><td>1&times;A100</td></tr>
+        <tr><td>Qwen 2.5 7B</td><td>7.6B</td><td>Dense</td><td>7.6B</td><td>32K</td><td>Средн.</td><td>Средн.</td><td>1&times;L40S</td></tr>
+        <tr><td>Llama 3.1 405B</td><td>405B</td><td>Dense</td><td>405B</td><td>128K</td><td>Низкий</td><td>Средн.</td><td>8&times;H100</td></tr>
+        <tr><td>Llama 3.1 70B</td><td>70B</td><td>Dense</td><td>70B</td><td>128K</td><td>Низкий</td><td>Средн.</td><td>2&times;H100</td></tr>
+        <tr><td>Llama 3.1 8B</td><td>8B</td><td>Dense</td><td>8B</td><td>128K</td><td>Низкий</td><td>Базов.</td><td>1&times;L40S</td></tr>
+        <tr><td>Mistral 7B</td><td>7B</td><td>Dense</td><td>7B</td><td>32K</td><td>Низкий</td><td>Базов.</td><td>1&times;L40S</td></tr>
+        <tr><td>Mixtral 8&times;7B</td><td>47B</td><td>MoE</td><td>~13B</td><td>32K</td><td>Низкий</td><td>Средн.</td><td>1&times;A100</td></tr>
+        <tr><td>Gemma 2 27B</td><td>27B</td><td>Dense</td><td>27B</td><td>8K</td><td>Низкий</td><td>Базов.</td><td>1&times;A100</td></tr>
+        <tr><td>GLM-4.5</td><td>~60B</td><td>MoE</td><td>30B</td><td>128K</td><td>Средн.</td><td>Хор.</td><td>2&times;H100</td></tr>
+        <tr><td>Phi-3 14B</td><td>14B</td><td>Dense</td><td>14B</td><td>128K</td><td>Низкий</td><td>Средн.</td><td>1&times;L40S</td></tr>
+        <tr><td>InternLM 2.5 7B</td><td>7B</td><td>Dense</td><td>7B</td><td>32K</td><td>Средн.</td><td>Средн.</td><td>1&times;L40S</td></tr>
+      </table>
+      </div>
+      <div class="tip-block">
+        <strong>Рекомендация:</strong> Для русского языка лучшие результаты у GigaChat, Qwen 3 235B и DeepSeek R1. Llama хорошо работает после fine-tuning на русских данных.
+      </div>
+      <h4 style="margin-top:20px;">Источники</h4>
+      <ol class="sources-list">
+        <li>NVIDIA DGX H100 Technical Documentation (2024)</li>
+        <li>DeepSeek V3 / R1 Technical Reports (2024-2025)</li>
+        <li>Qwen 2.5 / Qwen 3 Technical Reports (Alibaba, 2024-2025)</li>
+        <li>Meta Llama 3.1 Model Card (2024)</li>
+        <li>GigaChat Enterprise: Коммерческое предложение Сбера (2025)</li>
+        <li>vLLM Benchmark Suite (2024-2025)</li>
+        <li>Uptime Institute: Global Data Center Survey (2024)</li>
+        <li>Stanford HAI: AI Index Report (2025)</li>
+        <li>MERA Russian Language Model Evaluation (2025)</li>
+        <li>Huawei Ascend 910B Product Specifications (2024)</li>
+      </ol>
+    </div>
+
+  </div><!-- /method-content -->
+</div><!-- /method-side -->
+
+</div><!-- /main-layout -->
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const RATE = 92;
+
+const GPU_DATA = {
+  h100: { name: 'NVIDIA H100 80GB SXM', vram: 80, price: 30000, throughputBase: 96, bw: 3350 },
+  h200: { name: 'NVIDIA H200 141GB SXM', vram: 141, price: 40000, throughputBase: 130, bw: 4800 },
+  b200: { name: 'NVIDIA B200 192GB SXM', vram: 192, price: 40000, throughputBase: 210, bw: 8000 },
+  a100: { name: 'NVIDIA A100 80GB SXM', vram: 80, price: 15000, throughputBase: 55, bw: 2039 },
+  l40s: { name: 'NVIDIA L40S 48GB', vram: 48, price: 8000, throughputBase: 40, bw: 864 },
+  rtx6000ada: { name: 'NVIDIA RTX 6000 Ada 48GB', vram: 48, price: 6800, throughputBase: 35, bw: 960 },
+  rtx5090: { name: 'NVIDIA RTX 5090 32GB', vram: 32, price: 2500, throughputBase: 42, bw: 1792 },
+  mi300x: { name: 'AMD MI300X 192GB', vram: 192, price: 15000, throughputBase: 95, bw: 5300 },
+  gaudi3: { name: 'Intel Gaudi 3 128GB', vram: 128, price: 15000, throughputBase: 80, bw: 3700 },
+  ascend910b: { name: 'Huawei Ascend 910B 64GB', vram: 64, price: 12000, throughputBase: 50, bw: 1600 }
+};
+
+const QUANT_BYTES = { FP16: 2, FP8: 1, INT8: 1, INT4: 0.5, AWQ: 0.5, GPTQ: 0.5, GGUF_Q4: 0.5 };
+
+// Множители throughput по движку инференса
+const ENGINE_DATA = {
+  vllm:      { name: 'vLLM',        mult: 1.00, note: 'baseline, PagedAttention' },
+  sglang:    { name: 'SGLang',      mult: 1.15, note: 'RadixAttention, structured output' },
+  trtllm:    { name: 'TensorRT-LLM', mult: 1.40, note: 'NVIDIA-only, максимум' },
+  tgi:       { name: 'HuggingFace TGI', mult: 0.95, note: 'классический TGI' },
+  llamacpp:  { name: 'llama.cpp',   mult: 0.50, note: 'CPU/mixed, GGUF' }
+};
+
+// Множители throughput по квантованию
+const QUANT_TP = { FP16: 0.60, FP8: 1.00, INT8: 1.00, INT4: 1.30, AWQ: 1.10, GPTQ: 1.05, GGUF_Q4: 0.70 };
+
+
+const MODEL_PRESETS = [
+  { id: 'gigachat_ultra', name: 'GigaChat 3.1 Ultra', params: 702, active: 36, moe: true, ctx: 131072, vramFP8: 350, minGpu: 16, minGpuType: 'h100', throughputPerGpu: 50 },
+  { id: 'gigachat_lightning', name: 'GigaChat Lightning', params: 10, active: 1.8, moe: true, ctx: 262144, vramFP8: 6, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 120 },
+  { id: 'qwen3_235b', name: 'Qwen 3 235B', params: 235, active: 22, moe: true, ctx: 131072, vramFP8: 120, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 80 },
+  { id: 'kimi_k25', name: 'Kimi K2.5', params: 1000, active: 32, moe: true, ctx: 262144, vramFP8: 500, minGpu: 8, minGpuType: 'h100', throughputPerGpu: 45 },
+  { id: 'deepseek_r1', name: 'DeepSeek R1', params: 671, active: 37, moe: true, ctx: 131072, vramFP8: 340, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 55 },
+  { id: 'deepseek_v3', name: 'DeepSeek V3', params: 671, active: 37, moe: true, ctx: 131072, vramFP8: 340, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 60 },
+  { id: 'qwen25_72b', name: 'Qwen 2.5 72B', params: 72.7, active: 72.7, moe: false, ctx: 131072, vramFP8: 73, vramINT4: 37, vramINT8: 73, vramFP16: 145, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 96 },
+  { id: 'qwen25_14b', name: 'Qwen 2.5 14B', params: 14.7, active: 14.7, moe: false, ctx: 32768, vramFP8: 15, vramINT4: 8, minGpu: 1, minGpuType: 'a100', throughputPerGpu: 130 },
+  { id: 'qwen25_7b', name: 'Qwen 2.5 7B', params: 7.6, active: 7.6, moe: false, ctx: 32768, vramFP8: 8, vramINT4: 4.5, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 160 },
+  { id: 'llama31_70b', name: 'Llama 3.1 70B', params: 70, active: 70, moe: false, ctx: 131072, vramFP8: 70, vramINT4: 35, vramFP16: 140, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 96 },
+  { id: 'llama31_8b', name: 'Llama 3.1 8B', params: 8, active: 8, moe: false, ctx: 131072, vramFP8: 8, vramINT4: 4.5, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 160 },
+  { id: 'llama31_405b', name: 'Llama 3.1 405B', params: 405, active: 405, moe: false, ctx: 131072, vramFP8: 405, vramINT4: 200, minGpu: 8, minGpuType: 'h100', throughputPerGpu: 40 },
+  { id: 'mistral_7b', name: 'Mistral 7B', params: 7, active: 7, moe: false, ctx: 32768, vramFP8: 7, vramINT4: 4, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 170 },
+  { id: 'mixtral_8x7b', name: 'Mixtral 8x7B', params: 47, active: 13, moe: true, ctx: 32768, vramFP8: 47, vramINT4: 26, minGpu: 1, minGpuType: 'a100', throughputPerGpu: 80 },
+  { id: 'gemma2_27b', name: 'Gemma 2 27B', params: 27, active: 27, moe: false, ctx: 8192, vramFP8: 27, vramINT4: 14, minGpu: 1, minGpuType: 'a100', throughputPerGpu: 100 },
+  { id: 'glm45', name: 'GLM-4.5', params: 60, active: 30, moe: true, ctx: 131072, vramFP8: 60, vramINT4: 32, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 85 },
+  { id: 'phi3_14b', name: 'Phi-3 14B', params: 14, active: 14, moe: false, ctx: 131072, vramFP8: 14, vramINT4: 8, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 130 },
+  { id: 'internlm25_7b', name: 'InternLM 2.5 7B', params: 7, active: 7, moe: false, ctx: 32768, vramFP8: 7, vramINT4: 4, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 165 },
+  // === Qwen 3 family ===
+  { id: 'qwen3_235b_a22b', name: 'Qwen3-235B-A22B', params: 235, active: 22, moe: true, ctx: 131072, vramFP8: 120, vramINT4: 62, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 85 },
+  { id: 'qwen3_coder_480b', name: 'Qwen3-Coder-480B', params: 480, active: 35, moe: true, ctx: 262144, vramFP8: 245, vramINT4: 125, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 60 },
+  { id: 'qwen3_vl_72b', name: 'Qwen3-VL-72B', params: 72, active: 72, moe: false, ctx: 131072, vramFP8: 75, vramINT4: 38, vramFP16: 150, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 90 },
+  { id: 'qwen3_30b_a3b', name: 'Qwen3-30B-A3B', params: 30, active: 3, moe: true, ctx: 131072, vramFP8: 32, vramINT4: 17, minGpu: 1, minGpuType: 'h100', throughputPerGpu: 175 },
+  { id: 'qwen3_14b', name: 'Qwen3-14B', params: 14, active: 14, moe: false, ctx: 131072, vramFP8: 15, vramINT4: 8, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 135 },
+  { id: 'qwen3_8b', name: 'Qwen3-8B', params: 8, active: 8, moe: false, ctx: 131072, vramFP8: 9, vramINT4: 5, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 160 },
+  // === Llama 4 ===
+  { id: 'llama4_scout', name: 'Llama 4 Scout', params: 109, active: 17, moe: true, ctx: 10485760, vramFP8: 110, vramINT4: 56, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 110 },
+  { id: 'llama4_maverick', name: 'Llama 4 Maverick', params: 400, active: 17, moe: true, ctx: 1048576, vramFP8: 205, vramINT4: 105, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 95 },
+  // === DeepSeek ===
+  { id: 'deepseek_v32', name: 'DeepSeek-V3.2', params: 685, active: 37, moe: true, ctx: 163840, vramFP8: 350, vramINT4: 180, minGpu: 8, minGpuType: 'h100', throughputPerGpu: 62 },
+  { id: 'deepseek_r1_0528', name: 'DeepSeek-R1-0528', params: 685, active: 37, moe: true, ctx: 163840, vramFP8: 350, vramINT4: 180, minGpu: 8, minGpuType: 'h100', throughputPerGpu: 58 },
+  // === Kimi ===
+  { id: 'kimi_k2', name: 'Kimi K2', params: 1000, active: 32, moe: true, ctx: 131072, vramFP8: 500, vramINT4: 260, minGpu: 8, minGpuType: 'h100', throughputPerGpu: 48 },
+  // === GLM ===
+  { id: 'glm_46', name: 'GLM-4.6', params: 355, active: 32, moe: true, ctx: 200000, vramFP8: 180, vramINT4: 92, minGpu: 4, minGpuType: 'h100', throughputPerGpu: 75 },
+  // === Mistral ===
+  { id: 'mistral_large_3', name: 'Mistral Large 3', params: 123, active: 123, moe: false, ctx: 131072, vramFP8: 125, vramINT4: 64, vramFP16: 250, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 70 },
+  { id: 'mistral_small_3', name: 'Mistral Small 3', params: 24, active: 24, moe: false, ctx: 131072, vramFP8: 25, vramINT4: 13, minGpu: 1, minGpuType: 'a100', throughputPerGpu: 115 },
+  // === Gemma 3 ===
+  { id: 'gemma3_27b', name: 'Gemma 3 27B', params: 27, active: 27, moe: false, ctx: 131072, vramFP8: 28, vramINT4: 14, minGpu: 1, minGpuType: 'a100', throughputPerGpu: 100 },
+  { id: 'gemma3_9b', name: 'Gemma 3 9B', params: 9, active: 9, moe: false, ctx: 131072, vramFP8: 10, vramINT4: 5, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 155 },
+  // === Phi-4 ===
+  { id: 'phi4_14b', name: 'Phi-4 14B', params: 14, active: 14, moe: false, ctx: 16384, vramFP8: 15, vramINT4: 8, minGpu: 1, minGpuType: 'l40s', throughputPerGpu: 140 },
+  // === Yi-Lightning ===
+  { id: 'yi_lightning', name: 'Yi-Lightning', params: 200, active: 20, moe: true, ctx: 131072, vramFP8: 105, vramINT4: 54, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 90 },
+  // === Command R+ ===
+  { id: 'command_rp_v2', name: 'Command R+ v2', params: 104, active: 104, moe: false, ctx: 131072, vramFP8: 106, vramINT4: 55, vramFP16: 210, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 80 },
+  // === YandexGPT 5 Pro (оценочно, параметры официально не раскрыты) ===
+  { id: 'yandexgpt_5_pro', name: 'YandexGPT 5 Pro (оценка)', params: 70, active: 70, moe: false, ctx: 32768, vramFP8: 72, vramINT4: 37, vramFP16: 140, minGpu: 2, minGpuType: 'h100', throughputPerGpu: 90 }
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let models = [];
+let modelIdCounter = 0;
+let horizonYears = 5;
+let toggleStates = { togRussia: false, togGiga: false };
+
+function getModelVram(preset, quant) {
+  const key = 'vram' + quant;
+  if (preset[key]) return preset[key];
+  // Fallback: calculate from params
+  return preset.params * QUANT_BYTES[quant];
+}
+
+function addModel(presetIdx) {
+  const id = modelIdCounter++;
+  const pi = typeof presetIdx === 'number' ? presetIdx : 0;
+  models.push({ id, presetIdx: pi, quant: 'FP8', trafficPct: models.length === 0 ? 100 : 0 });
+  renderModels();
+  onInput();
+}
+
+function removeModel(id) {
+  models = models.filter(m => m.id !== id);
+  if (models.length === 0) addModel(0);
+  else renderModels();
+  onInput();
+}
+
+function renderModels() {
+  const c = document.getElementById('modelList');
+  c.innerHTML = '';
+  models.forEach((m, i) => {
+    const preset = MODEL_PRESETS[m.presetIdx];
+    const div = document.createElement('div');
+    div.className = 'model-row';
+    div.innerHTML = `
+      <div class="model-row-header">
+        <span style="font-weight:700;font-size:14px;">#${i+1}: ${preset.name}</span>
+        ${models.length > 1 ? `<button class="btn btn-danger btn-sm" onclick="removeModel(${m.id})">&#10005; Удалить</button>` : ''}
+      </div>
+      <div class="model-row-fields">
+        <div>
+          <div class="field-label">Модель</div>
+          <select onchange="onModelChange(${m.id},'preset',this.value)">
+            ${MODEL_PRESETS.map((p,j) => `<option value="${j}" ${j===m.presetIdx?'selected':''}>${p.name} (${p.params}B${p.moe?' MoE':''})</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div class="field-label">Квантование</div>
+          <select onchange="onModelChange(${m.id},'quant',this.value)">
+            ${['FP16','FP8','INT8','INT4','AWQ','GPTQ','GGUF_Q4'].map(q => `<option value="${q}" ${q===m.quant?'selected':''}>${q}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div class="field-label">% трафика: <strong>${m.trafficPct}%</strong></div>
+          <input type="range" min="0" max="100" value="${m.trafficPct}" oninput="onModelChange(${m.id},'traffic',this.value)">
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">
+        ${preset.params}B параметров ${preset.moe?'(MoE, '+preset.active+'B акт.)':' (dense)'} | Контекст: ${(preset.ctx/1024).toFixed(0)}K | VRAM: ~${getModelVram(preset, m.quant).toFixed(0)} ГБ (${m.quant})
+      </div>
+    `;
+    c.appendChild(div);
+  });
+  // Traffic warning
+  const totalTraffic = models.reduce((s,m) => s + m.trafficPct, 0);
+  const warn = document.getElementById('trafficWarning');
+  if (totalTraffic !== 100) {
+    warn.style.display = 'block';
+    warn.textContent = `Сумма трафика: ${totalTraffic}% (должна быть 100%)`;
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function onModelChange(id, field, val) {
+  const m = models.find(x => x.id === id);
+  if (!m) return;
+  if (field === 'preset') m.presetIdx = parseInt(val);
+  else if (field === 'quant') m.quant = val;
+  else if (field === 'traffic') m.trafficPct = parseInt(val);
+  renderModels();
+  onInput();
+}
+
+// ============================================================
+// TOGGLES & CONTROLS
+// ============================================================
+function toggleCheck(el) {
+  const cb = el.querySelector('input');
+  cb.checked = !cb.checked;
+  el.classList.toggle('checked', cb.checked);
+  onInput();
+}
+
+function toggleSwitch(id) {
+  toggleStates[id] = !toggleStates[id];
+  document.getElementById(id).classList.toggle('active', toggleStates[id]);
+  if (id === 'togGiga') {
+    document.getElementById('gigaFields').style.display = toggleStates[id] ? 'block' : 'none';
+  }
+  onInput();
+}
+
+function setHorizon(y, btn) {
+  horizonYears = y;
+  document.querySelectorAll('#bgHorizon button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  onInput();
+}
+
+function setMethodTab(idx, tab) {
+  document.querySelectorAll('.method-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.method-panel').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('mTab' + idx).classList.add('active');
+}
+
+// ============================================================
+// CALCULATION ENGINE
+// ============================================================
+function fmt(n) { return Math.round(n).toLocaleString('ru-RU'); }
+function fmtUsd(n) { return '$' + fmt(n); }
+function fmtRub(n) { return '\u20BD' + fmt(n); }
+
+function getAvgOutputTokens() {
+  const checks = document.querySelectorAll('#useCases input:checked');
+  const tokenMap = { chat: 200, docs: 500, code: 400, reports: 800, translate: 300, rag: 350 };
+  let total = 0, count = 0;
+  checks.forEach(c => { total += tokenMap[c.value] || 300; count++; });
+  return count > 0 ? total / count : 300;
+}
+
+function calculate() {
+  const employees = parseInt(document.getElementById('slEmployees').value);
+  const aiPct = parseInt(document.getElementById('slAiPct').value) / 100;
+  const peakPct = parseInt(document.getElementById('slPeakPct').value) / 100;
+  const gpuKey = document.getElementById('selGpu').value;
+  const gpu = GPU_DATA[gpuKey];
+  const gpuPerServer = parseInt(document.getElementById('selGpuPerServer').value);
+  const isRussia = toggleStates.togRussia;
+  const sanctionMarkup = isRussia && gpuKey !== 'ascend910b' ? 1.65 : 1.0;
+  const avgOutputTokens = getAvgOutputTokens();
+  const targetLatency = 5; // seconds
+
+  // Update display values
+  document.getElementById('vEmployees').textContent = fmt(employees);
+  document.getElementById('vAiPct').textContent = (aiPct * 100).toFixed(0) + '%';
+  document.getElementById('vPeakPct').textContent = (peakPct * 100).toFixed(0) + '%';
+
+  // User types
+  const aiUsers = Math.round(employees * aiPct);
+  const casual = Math.round(aiUsers * 0.65);
+  const regular = Math.round(aiUsers * 0.25);
+  const advanced = aiUsers - casual - regular;
+  document.getElementById('userTypes').innerHTML = `
+    <span class="user-badge casual">Казуальные: ${fmt(casual)} (65%, 5-15 запр/день)</span>
+    <span class="user-badge regular">Регулярные: ${fmt(regular)} (25%, 15-40 запр/день)</span>
+    <span class="user-badge advanced">Продвинутые: ${fmt(advanced)} (10%, 50-100+ запр/день)</span>
+  `;
+
+  // 5-step calculation
+  const concurrent = employees * aiPct * peakPct;
+  const activeRequests = concurrent * 0.4;
+  const requiredTokS = activeRequests * avgOutputTokens / targetLatency;
+
+  // Per-model GPU calculation
+  let totalGpuNeeded = 0;
+  const totalTraffic = models.reduce((s,m) => s + m.trafficPct, 0);
+  const modelAllocs = models.map(m => {
+    const preset = MODEL_PRESETS[m.presetIdx];
+    const vram = getModelVram(preset, m.quant);
+    const gpuForVram = Math.ceil(vram / gpu.vram);
+    const trafficFrac = totalTraffic > 0 ? m.trafficPct / totalTraffic : 0;
+    const modelTokS = requiredTokS * trafficFrac;
+
+    // Throughput scaling: GPU type x quantization x inference engine
+    let tpPerGpu = preset.throughputPerGpu;
+    const gpuMult = { h100: 1.00, h200: 1.35, b200: 2.00, a100: 0.60, l40s: 0.40, rtx6000ada: 0.38, rtx5090: 0.55, mi300x: 1.00, gaudi3: 0.85, ascend910b: 0.55 };
+    tpPerGpu *= (gpuMult[gpuKey] || 1.0);
+    tpPerGpu *= (QUANT_TP[m.quant] || 1.0);
+    const engineKey = (document.getElementById('selEngine') || {}).value || 'vllm';
+    const engine = ENGINE_DATA[engineKey] || ENGINE_DATA.vllm;
+    tpPerGpu *= engine.mult;
+
+    const gpuForThroughput = Math.ceil((modelTokS / tpPerGpu) * 1.3);
+    const gpuNeeded = Math.max(gpuForVram, gpuForThroughput);
+    totalGpuNeeded += gpuNeeded;
+    return { name: preset.name, vram: vram.toFixed(0), gpuNeeded, trafficPct: m.trafficPct, tokS: Math.round(tpPerGpu * gpuNeeded), tpPerGpu: Math.round(tpPerGpu) };
+  });
+
+  totalGpuNeeded = Math.max(totalGpuNeeded, 1);
+  const totalServers = Math.ceil(totalGpuNeeded / gpuPerServer);
+
+  // CAPEX
+  const gpuCost = totalGpuNeeded * gpu.price * sanctionMarkup;
+  const serverChassis = totalServers * 35000 * sanctionMarkup;
+  const storageCost = totalServers * 5000 * sanctionMarkup;
+  const networkBase = totalServers * 3000;
+  const networkIB = totalServers > 1 ? 15000 * totalServers : 0;
+  const networkCost = (networkBase + networkIB) * sanctionMarkup;
+  const installCost = totalServers * 2000;
+  const totalCapex = gpuCost + serverChassis + storageCost + networkCost + installCost;
+
+  // OPEX per year
+  const fillRatio = totalGpuNeeded / (totalServers * gpuPerServer);
+  const powerPerServer = (5000 + 15000 * fillRatio) * (isRussia ? 0.7 : 1);
+  const powerTotal = powerPerServer * totalServers;
+  const coloCost = 48000 * totalServers;
+  const maintenanceCost = totalCapex * 0.08;
+  const softwareCost = Math.max(5000, 2500 * totalGpuNeeded);
+  const staffCost = Math.max(30000, 20000 + 10000 * totalServers);
+  const totalOpex = powerTotal + coloCost + maintenanceCost + softwareCost + staffCost;
+
+  // TCO
+  const tcoTotal = totalCapex + totalOpex * horizonYears;
+  const perUserMonth = tcoTotal / (aiUsers * horizonYears * 12);
+
+  // Update stat cards
+  document.getElementById('rGpus').textContent = totalGpuNeeded;
+  document.getElementById('rGpuType').textContent = gpu.name;
+  document.getElementById('rServers').textContent = totalServers;
+  document.getElementById('rGpuPerSrv').textContent = gpuPerServer + ' GPU/сервер';
+  document.getElementById('rTcoLabel').textContent = horizonYears + '-летний TCO';
+  document.getElementById('rTco').textContent = fmtRub(tcoTotal * RATE);
+  document.getElementById('rTcoUsd').textContent = fmtUsd(tcoTotal);
+  document.getElementById('rPerUser').textContent = fmtRub(perUserMonth * RATE);
+  document.getElementById('rPerUserUsd').textContent = fmtUsd(perUserMonth) + '/мес';
+
+  // CAPEX table
+  const capexRows = [
+    ['GPU (' + totalGpuNeeded + ' × ' + gpu.name + (sanctionMarkup>1?' +65%':'') + ')', gpuCost],
+    ['Серверы (шасси, CPU, RAM) × ' + totalServers, serverChassis],
+    ['Хранилище × ' + totalServers, storageCost],
+    ['Сеть' + (totalServers > 1 ? ' (InfiniBand)' : ''), networkCost],
+    ['Монтаж и установка', installCost]
+  ];
+  document.getElementById('capexBody').innerHTML = capexRows.map(r => `<tr><td>${r[0]}</td><td class="num">${fmtUsd(r[1])}</td><td class="num">${fmtRub(r[1]*RATE)}</td></tr>`).join('');
+  document.getElementById('capexTotalUsd').textContent = fmtUsd(totalCapex);
+  document.getElementById('capexTotalRub').textContent = fmtRub(totalCapex * RATE);
+
+  // OPEX table
+  const opexRows = [
+    ['Электроэнергия + охлаждение', powerTotal],
+    ['Колокация / дата-центр', coloCost],
+    ['Обслуживание (8% CAPEX)', maintenanceCost],
+    ['Программное обеспечение', softwareCost],
+    ['Персонал (ML Ops)', staffCost]
+  ];
+  document.getElementById('opexBody').innerHTML = opexRows.map(r => `<tr><td>${r[0]}</td><td class="num">${fmtUsd(r[1])}</td><td class="num">${fmtRub(r[1]*RATE)}</td></tr>`).join('');
+  document.getElementById('opexTotalUsd').textContent = fmtUsd(totalOpex) + '/год';
+  document.getElementById('opexTotalRub').textContent = fmtRub(totalOpex * RATE) + '/год';
+
+  // TCO bar chart
+  const tcoByYear = [];
+  for (let y = 1; y <= horizonYears; y++) {
+    tcoByYear.push({ year: y, value: totalCapex + totalOpex * y });
+  }
+  const maxTco = tcoByYear[tcoByYear.length - 1].value;
+  document.getElementById('tcoChart').innerHTML = tcoByYear.map(t => {
+    const pct = maxTco > 0 ? (t.value / maxTco * 100) : 0;
+    const isCapex = t.year === 1;
+    return `<div class="bar-row">
+      <div class="bar-label">Год ${t.year}</div>
+      <div class="bar-track">
+        <div class="bar-fill ${isCapex ? 'capex' : 'opex'}" style="width:${pct}%">${fmtRub(t.value * RATE)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // GigaChat comparison
+  if (toggleStates.togGiga) {
+    document.getElementById('gigaCompare').style.display = 'block';
+    const gigaAnnual = parseFloat(document.getElementById('inGigaCost').value) || 140000000;
+    const gigaAnnualUsd = gigaAnnual / RATE;
+
+    const gigaRows = [];
+    const maxVal = Math.max(tcoTotal, gigaAnnualUsd * horizonYears);
+    for (let y = 1; y <= horizonYears; y++) {
+      const selfHosted = totalCapex + totalOpex * y;
+      const gigaCost = gigaAnnualUsd * y;
+      gigaRows.push({ year: y, self: selfHosted, giga: gigaCost });
+    }
+
+    document.getElementById('gigaChart').innerHTML = gigaRows.map(r => {
+      const selfPct = maxVal > 0 ? r.self / maxVal * 100 : 0;
+      const gigaPct = maxVal > 0 ? r.giga / maxVal * 100 : 0;
+      return `<div class="bar-row">
+        <div class="bar-label">Год ${r.year}</div>
+        <div style="flex:1;">
+          <div class="bar-track" style="margin-bottom:3px;height:16px;">
+            <div class="bar-fill capex" style="width:${selfPct}%;font-size:10px;height:16px;">Self: ${fmtRub(r.self * RATE)}</div>
+          </div>
+          <div class="bar-track" style="height:16px;">
+            <div class="bar-fill giga" style="width:${gigaPct}%;font-size:10px;height:16px;">GC: ${fmtRub(r.giga * RATE)}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Breakeven
+    let breakeven = null;
+    for (let u = 100; u <= 50000; u += 100) {
+      const gc = gigaAnnual * horizonYears;
+      const selfPerUser = tcoTotal * RATE / aiUsers * u / employees;
+      // Simplified: at what user count does self-hosted become cheaper per year
+    }
+    const selfPerUserMonth = perUserMonth * RATE;
+    const gigaPerUserMonth = gigaAnnual / (aiUsers * 12);
+    document.getElementById('gigaBreakeven').innerHTML = selfPerUserMonth < gigaPerUserMonth ?
+      `<span style="color:var(--green);">&#10003; Self-hosted дешевле: ${fmtRub(selfPerUserMonth)}/мес vs ${fmtRub(gigaPerUserMonth)}/мес на пользователя</span>` :
+      `<span style="color:var(--purple);">&#9733; GigaChat дешевле: ${fmtRub(gigaPerUserMonth)}/мес vs ${fmtRub(selfPerUserMonth)}/мес на пользователя</span>`;
+
+    document.getElementById('gigaTableBody').innerHTML = `
+      <tr><td>TCO за ${horizonYears} лет</td><td class="num">${fmtRub(tcoTotal * RATE)}</td><td class="num">${fmtRub(gigaAnnual * horizonYears)}</td></tr>
+      <tr><td>На пользователя/мес</td><td class="num">${fmtRub(selfPerUserMonth)}</td><td class="num">${fmtRub(gigaPerUserMonth)}</td></tr>
+      <tr><td>CAPEX</td><td class="num">${fmtRub(totalCapex * RATE)}</td><td class="num">${fmtRub(0)}</td></tr>
+      <tr><td>OPEX/год</td><td class="num">${fmtRub(totalOpex * RATE)}</td><td class="num">${fmtRub(gigaAnnual)}</td></tr>
+    `;
+  } else {
+    document.getElementById('gigaCompare').style.display = 'none';
+  }
+
+  // Model allocation table
+  document.getElementById('modelAllocBody').innerHTML = modelAllocs.map(a =>
+    `<tr><td>${a.name}</td><td class="num">${a.vram} ГБ</td><td class="num">${a.gpuNeeded}</td><td class="num">${a.trafficPct}%</td><td class="num">${fmt(a.tokS)}</td></tr>`
+  ).join('');
+
+  // 5-step display
+  document.getElementById('stepsDisplay').innerHTML = `
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-label">Одновременных пользователей</div>
+        <div class="step-formula"><span id="ks1"></span></div>
+        <div class="step-result">${fmt(employees)} &times; ${(aiPct*100).toFixed(0)}% &times; ${(peakPct*100).toFixed(0)}% = ${concurrent.toFixed(1)}</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-label">Активных запросов</div>
+        <div class="step-formula"><span id="ks2"></span></div>
+        <div class="step-result">${concurrent.toFixed(1)} &times; 40% = ${activeRequests.toFixed(1)}</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-label">Требуемых tok/s</div>
+        <div class="step-formula"><span id="ks3"></span></div>
+        <div class="step-result">${activeRequests.toFixed(1)} &times; ${avgOutputTokens.toFixed(0)} / ${targetLatency} = ${requiredTokS.toFixed(0)} tok/s</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-label">GPU (по всем моделям)</div>
+        <div class="step-formula"><span id="ks4"></span></div>
+        <div class="step-result">&Sigma; max(VRAM, throughput &times; 1.3) = ${totalGpuNeeded} GPU</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-label">Серверов</div>
+        <div class="step-formula"><span id="ks5"></span></div>
+        <div class="step-result">ceil(${totalGpuNeeded} / ${gpuPerServer}) = ${totalServers}</div>
+      </div>
+    </div>
+  `;
+
+  // Render step formulas
+  renderStepFormulas();
+}
+
+// ============================================================
+// KATEX RENDERING
+// ============================================================
+function safeKatex(elementId, formula, displayMode) {
+  try {
+    const el = document.getElementById(elementId);
+    if (el) {
+      katex.render(formula, el, { displayMode: displayMode !== false, throwOnError: false });
+    }
+  } catch (e) {
+    console.warn('KaTeX error for ' + elementId + ':', e);
+    const el = document.getElementById(elementId);
+    if (el) el.textContent = formula;
+  }
+}
+
+function renderMethodologyFormulas() {
+  safeKatex('kf_weights', '\\text{VRAM}_{\\text{weights}} = P \\times b \\;\\text{(ГБ)}');
+  safeKatex('kf_kv', '\\text{KV}_{\\text{cache}} = 2 \\times L \\times H_{kv} \\times d_h \\times T \\times B \\times b_{kv}');
+  safeKatex('kf_total_vram', '\\text{VRAM}_{\\text{total}} = \\text{Weights} + \\text{KV}_{\\text{cache}} + \\text{Overhead}_{10\\text{-}20\\%}');
+  safeKatex('kf_step1', '\\text{Concurrent} = N_{\\text{employees}} \\times \\%_{\\text{AI}} \\times \\%_{\\text{peak}}');
+  safeKatex('kf_step2', '\\text{Active} = \\text{Concurrent} \\times 0.4');
+  safeKatex('kf_step3', '\\text{tok/s}_{\\text{req}} = \\frac{\\text{Active} \\times \\text{Avg}_{\\text{output tokens}}}{\\text{Latency}_{\\text{target}}}');
+  safeKatex('kf_step4', '\\text{GPU} = \\max\\left(\\text{GPU}_{\\text{VRAM}},\\; \\frac{\\text{tok/s}_{\\text{req}}}{\\text{tok/s}_{\\text{per GPU}}} \\times 1.3\\right)');
+  safeKatex('kf_step5', '\\text{Servers} = \\lceil \\frac{\\text{GPU}_{\\text{total}}}{\\text{GPU}_{\\text{per server}}} \\rceil');
+  safeKatex('kf_throughput', '\\text{tok/s} \\approx \\frac{\\text{Memory BW (ГБ/с)}}{\\text{Model Size (ГБ)}} \\times \\eta');
+  safeKatex('kf_power', '\\text{Power}_{\\text{year}} = W \\times \\text{PUE}_{1.4} \\times 8760 \\times \\text{Price}_{\\text{kWh}}');
+}
+
+function renderStepFormulas() {
+  safeKatex('ks1', 'C = N \\times \\%_{AI} \\times \\%_{peak}');
+  safeKatex('ks2', 'A = C \\times 0.4');
+  safeKatex('ks3', 'R = \\frac{A \\times T_{out}}{L_{target}}');
+  safeKatex('ks4', 'GPU_i = \\max\\left(\\lceil\\frac{VRAM_i}{V_{gpu}}\\rceil,\\; \\lceil\\frac{R_i}{\\theta_i} \\times 1.3\\rceil\\right)');
+  safeKatex('ks5', 'S = \\lceil \\frac{\\sum GPU_i}{G_{server}} \\rceil');
+}
+
+// ============================================================
+// INPUT HANDLER
+// ============================================================
+function onInput() {
+  calculate();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = function() {
+  addModel(6); // Default: Qwen 2.5 72B
+  renderModels();
+  calculate();
+  renderMethodologyFormulas();
+};
+</script>
+</body>
+</html>
